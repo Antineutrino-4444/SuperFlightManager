@@ -41,17 +41,26 @@ function getAirlinesForRoute(origin, destination) {
   const d = AIRPORTS[destination];
   if (!o || !d) return AIRLINES.slice(0, 5);
 
-  const candidates = AIRLINES.filter(a => {
-    // Airline from either country, or major international carriers
-    const majorIntl = ['EK', 'QR', 'SQ', 'TK', 'EY', 'BA', 'LH', 'AF', 'KL', 'UA', 'DL', 'AA', 'ET', 'CX', 'NH', 'JL', 'KE', 'CA', 'MU', 'QF'];
-    if (majorIntl.includes(a.code)) return true;
-    if (a.country === o.country || a.country === d.country) return true;
-    return false;
-  });
+  const majorIntl = ['EK', 'QR', 'SQ', 'TK', 'EY', 'BA', 'LH', 'AF', 'KL', 'UA', 'DL', 'AA', 'ET', 'CX', 'NH', 'JL', 'KE', 'CA', 'MU', 'QF'];
 
-  // Shuffle and pick a subset
-  const shuffled = candidates.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(8, shuffled.length));
+  // Home country airlines always included
+  const homeAirlines = AIRLINES.filter(a =>
+    a.country === o.country || a.country === d.country
+  );
+
+  // Major international carriers relevant to this route
+  const majorCarriers = AIRLINES.filter(a =>
+    majorIntl.includes(a.code) && !homeAirlines.some(h => h.code === a.code)
+  );
+
+  // Always include home airlines + a good selection of major carriers
+  // Shuffle major carriers but keep all home airlines
+  const shuffledMajor = majorCarriers.sort(() => Math.random() - 0.5);
+  const maxMajor = Math.max(6, 12 - homeAirlines.length);
+  const selected = [...homeAirlines, ...shuffledMajor.slice(0, maxMajor)];
+
+  // Shuffle the final list so home airlines aren't always first in results
+  return selected.sort(() => Math.random() - 0.5);
 }
 
 // Generate a realistic departure time

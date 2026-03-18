@@ -42,3 +42,13 @@ export async function fetchRegions() {
   const res = await fetch(`${API_BASE}/regions`);
   return res.json();
 }
+
+export async function fetchAircraftFamilies() {
+  const res = await fetch(`${API_BASE}/aircraft-families`);
+  return res.json();
+}
+
+export async function fetchDiagnostics() {
+  const res = await fetch(`${API_BASE}/diagnostics`);
+  return res.json();
+}

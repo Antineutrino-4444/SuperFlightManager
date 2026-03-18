@@ -4,7 +4,7 @@ const { buildItineraries, filterItineraries } = require('../services/pathBuilder
 const { convertCurrency, getExchangeRates } = require('../services/currency');
 const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
-const { AIRCRAFT_TYPES } = require('../data/aircraft');
+const { AIRCRAFT_TYPES, AIRCRAFT_FAMILIES } = require('../data/aircraft');
 const { CURRENCIES } = require('../data/currencies');
 
 // GET /api/airports - search airports
@@ -43,6 +43,11 @@ router.get('/alliances', (req, res) => {
 // GET /api/aircraft
 router.get('/aircraft', (req, res) => {
   res.json(AIRCRAFT_TYPES);
+});
+
+// GET /api/aircraft-families
+router.get('/aircraft-families', (req, res) => {
+  res.json(AIRCRAFT_FAMILIES);
 });
 
 // GET /api/currencies
@@ -126,6 +131,34 @@ router.post('/search', async (req, res) => {
       }));
     }
 
+    // Build diagnostic info about the search
+    const searchDiagnostics = {
+      totalGenerated: itineraries.length,
+      totalAfterFilter: filtered.length,
+      filtersApplied: [],
+      dataSource: 'Mock flight generator (synthetic data based on real airline/route/aircraft databases)',
+    };
+
+    // Track which filters were applied
+    if (filters.aircraftTypes && filters.aircraftTypes.length > 0) searchDiagnostics.filtersApplied.push(`Aircraft: ${filters.aircraftTypes.join(', ')}`);
+    if (filters.airlines && filters.airlines.length > 0) searchDiagnostics.filtersApplied.push(`Airlines: ${filters.airlines.join(', ')}`);
+    if (filters.alliances && filters.alliances.length > 0) searchDiagnostics.filtersApplied.push(`Alliances: ${filters.alliances.join(', ')}`);
+    if (filters.maxStops !== undefined) searchDiagnostics.filtersApplied.push(`Max stops: ${filters.maxStops}`);
+    if (filters.allowOvernight === false) searchDiagnostics.filtersApplied.push('No overnight layovers');
+    if (filters.maxPrice) searchDiagnostics.filtersApplied.push(`Max price: $${filters.maxPrice}`);
+    if (filters.latestArrival) searchDiagnostics.filtersApplied.push(`Latest arrival: ${filters.latestArrival}`);
+    if (filters.transferContinents && filters.transferContinents.length > 0) searchDiagnostics.filtersApplied.push(`Transfer continents: ${filters.transferContinents.join(', ')}`);
+    if (filters.transferRegions && filters.transferRegions.length > 0) searchDiagnostics.filtersApplied.push(`Transfer regions: ${filters.transferRegions.join(', ')}`);
+
+    // Determine reason if no results
+    if (results.length === 0) {
+      if (itineraries.length === 0) {
+        searchDiagnostics.noResultsReason = 'No itineraries could be generated for this route. This may happen if the airports are too close, or no valid hub connections exist within the distance threshold (1.8x direct distance).';
+      } else {
+        searchDiagnostics.noResultsReason = `${itineraries.length} itineraries were generated but all were eliminated by your filters: ${searchDiagnostics.filtersApplied.join('; ')}. Try relaxing your filter criteria.`;
+      }
+    }
+
     res.json({
       origin: { code: origin, ...AIRPORTS[origin] },
       destination: { code: destination, ...AIRPORTS[destination] },
@@ -133,11 +166,92 @@ router.post('/search', async (req, res) => {
       currency,
       resultCount: results.length,
       results,
+      diagnostics: searchDiagnostics,
     });
   } catch (err) {
     console.error('Search error:', err);
     res.status(500).json({ error: 'Search failed', details: err.message });
   }
+});
+
+// GET /api/diagnostics - test all data sources and connections
+router.get('/diagnostics', async (req, res) => {
+  const checks = [];
+
+  // Check airports data
+  const airportCount = Object.keys(AIRPORTS).length;
+  checks.push({
+    name: 'Airport Database',
+    status: airportCount > 0 ? 'ok' : 'error',
+    detail: `${airportCount} airports loaded`,
+  });
+
+  // Check airlines data
+  checks.push({
+    name: 'Airline Database',
+    status: AIRLINES.length > 0 ? 'ok' : 'error',
+    detail: `${AIRLINES.length} airlines loaded (${ALLIANCES.length} alliance groups)`,
+  });
+
+  // Check aircraft data
+  checks.push({
+    name: 'Aircraft Database',
+    status: AIRCRAFT_TYPES.length > 0 ? 'ok' : 'error',
+    detail: `${AIRCRAFT_TYPES.length} aircraft types, ${AIRCRAFT_FAMILIES.length} families loaded`,
+  });
+
+  // Check currencies data
+  checks.push({
+    name: 'Currency Database',
+    status: CURRENCIES.length > 0 ? 'ok' : 'error',
+    detail: `${CURRENCIES.length} currencies loaded`,
+  });
+
+  // Check exchange rate API
+  try {
+    const rates = await getExchangeRates();
+    const rateCount = Object.keys(rates).length;
+    checks.push({
+      name: 'Exchange Rate API',
+      status: rateCount > 0 ? 'ok' : 'warning',
+      detail: rateCount > 0
+        ? `${rateCount} exchange rates fetched (live from open.er-api.com)`
+        : 'Using fallback rates (API unreachable)',
+    });
+  } catch (err) {
+    checks.push({
+      name: 'Exchange Rate API',
+      status: 'error',
+      detail: `Failed: ${err.message}`,
+    });
+  }
+
+  // Check flight generation works
+  try {
+    const { generateDirectFlights } = require('../services/flightSearch');
+    const testFlights = generateDirectFlights('JFK', 'LAX', '2025-06-01', 2);
+    checks.push({
+      name: 'Flight Generator',
+      status: testFlights.length > 0 ? 'ok' : 'error',
+      detail: `Generated ${testFlights.length} test flights (JFK-LAX)`,
+    });
+  } catch (err) {
+    checks.push({
+      name: 'Flight Generator',
+      status: 'error',
+      detail: `Failed: ${err.message}`,
+    });
+  }
+
+  // Data source info
+  checks.push({
+    name: 'Data Source',
+    status: 'info',
+    detail: 'Mock flight generator (no external flight API). Flights are synthetically generated based on realistic airline/route/aircraft data.',
+  });
+
+  const allOk = checks.every(c => c.status === 'ok' || c.status === 'info');
+  res.json({ healthy: allOk, checks });
 });
 
 module.exports = router;
