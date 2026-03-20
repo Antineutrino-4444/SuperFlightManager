@@ -35,23 +35,62 @@ function getAircraftForDistance(distanceKm) {
   }
 }
 
+// Airlines that are known to operate specific country-pair routes
+// Key format: "COUNTRY1-COUNTRY2" (alphabetical), value: array of airline codes
+const COUNTRY_PAIR_CARRIERS = {
+  'CN-US': ['UA', 'DL', 'AA', 'CA', 'MU', 'CZ', 'HU'],
+  'JP-US': ['UA', 'DL', 'AA', 'NH', 'JL'],
+  'KR-US': ['UA', 'DL', 'AA', 'KE', 'OZ'],
+  'GB-US': ['UA', 'DL', 'AA', 'BA', 'VS'],
+  'DE-US': ['UA', 'DL', 'LH'],
+  'FR-US': ['UA', 'DL', 'AF'],
+  'AE-US': ['EK', 'EY'],
+  'QA-US': ['QR'],
+  'SG-US': ['SQ'],
+  'CN-JP': ['CA', 'MU', 'CZ', 'NH', 'JL'],
+  'CN-KR': ['CA', 'MU', 'CZ', 'KE', 'OZ'],
+  'CN-GB': ['BA', 'CA', 'MU', 'CZ'],
+  'AU-US': ['QF', 'UA', 'DL'],
+  'IN-US': ['UA', 'DL', 'AA', 'AI'],
+  'TR-US': ['TK'],
+  'HK-US': ['CX', 'UA', 'DL', 'AA'],
+  'TW-US': ['BR', 'UA', 'DL'],
+  'TH-US': ['TG'],
+  'CA-US': ['AC', 'UA', 'DL', 'AA'],
+  'MX-US': ['AM', 'UA', 'DL', 'AA'],
+  'BR-US': ['LA', 'UA', 'DL', 'AA'],
+};
+
+function getCountryPairKey(country1, country2) {
+  return [country1, country2].sort().join('-');
+}
+
 // Get airlines that plausibly operate between two regions
 function getAirlinesForRoute(origin, destination) {
   const o = AIRPORTS[origin];
   const d = AIRPORTS[destination];
   if (!o || !d) return AIRLINES.slice(0, 5);
 
-  const candidates = AIRLINES.filter(a => {
-    // Airline from either country, or major international carriers
-    const majorIntl = ['EK', 'QR', 'SQ', 'TK', 'EY', 'BA', 'LH', 'AF', 'KL', 'UA', 'DL', 'AA', 'ET', 'CX', 'NH', 'JL', 'KE', 'CA', 'MU', 'QF'];
+  // Start with country-pair specific carriers (these always appear)
+  const pairKey = getCountryPairKey(o.country, d.country);
+  const pairCarrierCodes = COUNTRY_PAIR_CARRIERS[pairKey] || [];
+  const guaranteed = AIRLINES.filter(a => pairCarrierCodes.includes(a.code));
+
+  // Then add other plausible candidates
+  const majorIntl = ['EK', 'QR', 'SQ', 'TK', 'EY', 'BA', 'LH', 'AF', 'KL', 'UA', 'DL', 'AA', 'ET', 'CX', 'NH', 'JL', 'KE', 'CA', 'MU', 'QF'];
+  const guaranteedCodes = new Set(guaranteed.map(a => a.code));
+
+  const additionalCandidates = AIRLINES.filter(a => {
+    if (guaranteedCodes.has(a.code)) return false;
     if (majorIntl.includes(a.code)) return true;
     if (a.country === o.country || a.country === d.country) return true;
     return false;
   });
 
-  // Shuffle and pick a subset
-  const shuffled = candidates.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(8, shuffled.length));
+  // Shuffle only the additional candidates, guaranteed carriers always included
+  const shuffled = additionalCandidates.sort(() => Math.random() - 0.5);
+  const maxAdditional = Math.max(0, 10 - guaranteed.length);
+  return [...guaranteed, ...shuffled.slice(0, maxAdditional)];
 }
 
 // Generate a realistic departure time

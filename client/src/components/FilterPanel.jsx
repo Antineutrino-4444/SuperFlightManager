@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchAircraft, fetchAirlines, fetchRegions } from '../services/api';
+import { fetchAircraft, fetchAirlines, fetchRegions, fetchAircraftFamilies } from '../services/api';
 
 function CollapsibleSection({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -18,13 +18,16 @@ function CollapsibleSection({ title, children, defaultOpen = false }) {
 
 export default function FilterPanel({ filters, onChange }) {
   const [aircraft, setAircraft] = useState([]);
+  const [families, setFamilies] = useState({});
   const [airlines, setAirlines] = useState([]);
   const [regions, setRegions] = useState({ continents: [], regions: [] });
   const [aircraftSearch, setAircraftSearch] = useState('');
   const [airlineSearch, setAirlineSearch] = useState('');
+  const [aircraftMode, setAircraftMode] = useState('family'); // 'family' or 'individual'
 
   useEffect(() => {
     fetchAircraft().then(setAircraft);
+    fetchAircraftFamilies().then(setFamilies);
     fetchAirlines().then(setAirlines);
     fetchRegions().then(setRegions);
   }, []);
@@ -41,6 +44,12 @@ export default function FilterPanel({ filters, onChange }) {
     updateFilter(key, newArr);
   };
 
+  const familyList = Object.values(families);
+  const filteredFamilies = familyList.filter(f =>
+    !aircraftSearch || f.family.toLowerCase().includes(aircraftSearch.toLowerCase()) ||
+    f.manufacturer.toLowerCase().includes(aircraftSearch.toLowerCase())
+  );
+
   const filteredAircraft = aircraft.filter(a =>
     !aircraftSearch || a.model.toLowerCase().includes(aircraftSearch.toLowerCase()) ||
     a.manufacturer.toLowerCase().includes(aircraftSearch.toLowerCase()) ||
@@ -53,6 +62,8 @@ export default function FilterPanel({ filters, onChange }) {
   );
 
   const alliances = ['Star Alliance', 'oneworld', 'SkyTeam', 'None'];
+
+  const hasAircraftFilter = (filters.aircraftTypes || []).length > 0 || (filters.aircraftFamilies || []).length > 0;
 
   return (
     <>
@@ -73,29 +84,65 @@ export default function FilterPanel({ filters, onChange }) {
 
       {/* Aircraft Type */}
       <CollapsibleSection title="Aircraft Type">
+        <div className="aircraft-mode-toggle">
+          <button
+            className={aircraftMode === 'family' ? 'active' : ''}
+            onClick={() => setAircraftMode('family')}
+          >
+            By Family
+          </button>
+          <button
+            className={aircraftMode === 'individual' ? 'active' : ''}
+            onClick={() => setAircraftMode('individual')}
+          >
+            Individual
+          </button>
+        </div>
         <input
           type="text"
-          placeholder="Search aircraft..."
+          placeholder={aircraftMode === 'family' ? 'Search families...' : 'Search aircraft...'}
           value={aircraftSearch}
           onChange={e => setAircraftSearch(e.target.value)}
           style={{ width: '100%', padding: '0.3rem 0.5rem', marginBottom: '0.5rem', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '0.8rem' }}
         />
-        <div className="checkbox-group" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-          {filteredAircraft.map(ac => (
-            <label key={ac.code + ac.model} className="checkbox-item">
-              <input
-                type="checkbox"
-                checked={(filters.aircraftTypes || []).includes(ac.code)}
-                onChange={() => toggleArrayItem('aircraftTypes', ac.code)}
-              />
-              <span>{ac.model}</span>
-              <span style={{ color: 'var(--text-light)', fontSize: '0.7rem' }}>({ac.category})</span>
-            </label>
-          ))}
-        </div>
-        {(filters.aircraftTypes || []).length > 0 && (
+
+        {aircraftMode === 'family' ? (
+          <div className="checkbox-group" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {filteredFamilies.map(fam => (
+              <label key={fam.family} className="checkbox-item">
+                <input
+                  type="checkbox"
+                  checked={(filters.aircraftFamilies || []).includes(fam.family)}
+                  onChange={() => toggleArrayItem('aircraftFamilies', fam.family)}
+                />
+                <span>{fam.manufacturer} {fam.family}</span>
+                <span style={{ color: 'var(--text-light)', fontSize: '0.7rem' }}>
+                  ({fam.codes.length} variant{fam.codes.length > 1 ? 's' : ''})
+                </span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div className="checkbox-group" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {filteredAircraft.map(ac => (
+              <label key={ac.code + ac.model} className="checkbox-item">
+                <input
+                  type="checkbox"
+                  checked={(filters.aircraftTypes || []).includes(ac.code)}
+                  onChange={() => toggleArrayItem('aircraftTypes', ac.code)}
+                />
+                <span>{ac.model}</span>
+                <span style={{ color: 'var(--text-light)', fontSize: '0.7rem' }}>({ac.category})</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {hasAircraftFilter && (
           <button
-            onClick={() => updateFilter('aircraftTypes', [])}
+            onClick={() => {
+              onChange({ ...filters, aircraftTypes: [], aircraftFamilies: [] });
+            }}
             style={{ marginTop: '0.3rem', fontSize: '0.7rem', color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}
           >
             Clear aircraft filter

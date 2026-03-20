@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AirportInput from './components/AirportInput';
 import FilterPanel from './components/FilterPanel';
 import ItineraryCard from './components/ItineraryCard';
-import { searchFlights, fetchCurrencies } from './services/api';
+import { searchFlights, fetchCurrencies, fetchDataStatus } from './services/api';
 
 export default function App() {
   const [origin, setOrigin] = useState('');
@@ -21,6 +21,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searched, setSearched] = useState(false);
+
+  // Data status
+  const [dataStatus, setDataStatus] = useState(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [showStatus, setShowStatus] = useState(false);
 
   useEffect(() => {
     fetchCurrencies().then(setCurrencies);
@@ -57,6 +62,20 @@ export default function App() {
     }
   }
 
+  async function handleCheckStatus() {
+    setStatusLoading(true);
+    try {
+      const status = await fetchDataStatus();
+      setDataStatus(status);
+      setShowStatus(true);
+    } catch (err) {
+      setDataStatus({ error: err.message });
+      setShowStatus(true);
+    } finally {
+      setStatusLoading(false);
+    }
+  }
+
   function handleKeyDown(e) {
     if (e.key === 'Enter') handleSearch();
   }
@@ -69,15 +88,61 @@ export default function App() {
           <h1>SuperFlightManager</h1>
           <div className="header-subtitle">Smart flight search with custom path building</div>
         </div>
-        <div className="currency-selector">
-          <label>Currency:</label>
-          <select value={currency} onChange={e => setCurrency(e.target.value)}>
-            {currencies.map(c => (
-              <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
-            ))}
-          </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <button
+            className="status-btn"
+            onClick={handleCheckStatus}
+            disabled={statusLoading}
+          >
+            {statusLoading ? 'Checking...' : 'Check Data Status'}
+          </button>
+          <div className="currency-selector">
+            <label>Currency:</label>
+            <select value={currency} onChange={e => setCurrency(e.target.value)}>
+              {currencies.map(c => (
+                <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
+
+      {/* Data Status Modal */}
+      {showStatus && dataStatus && (
+        <div className="status-overlay" onClick={() => setShowStatus(false)}>
+          <div className="status-modal" onClick={e => e.stopPropagation()}>
+            <div className="status-modal-header">
+              <h3>Data Source Status</h3>
+              <button onClick={() => setShowStatus(false)} className="status-close">&times;</button>
+            </div>
+            {dataStatus.error ? (
+              <div className="status-error">Failed to check status: {dataStatus.error}</div>
+            ) : (
+              <div className="status-body">
+                <div className={`status-overall ${dataStatus.allOk ? 'ok' : 'warn'}`}>
+                  {dataStatus.allOk ? 'All Systems Operational' : 'Some Issues Detected'}
+                </div>
+                <div className="status-grid">
+                  {Object.entries(dataStatus.endpoints).map(([key, ep]) => (
+                    <div key={key} className={`status-item ${ep.ok ? 'ok' : 'err'}`}>
+                      <div className="status-dot"></div>
+                      <div>
+                        <div className="status-name">{key}</div>
+                        <div className="status-msg">{ep.message}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="status-note">
+                  <strong>Data Source:</strong> {dataStatus.dataSource}
+                </div>
+                <div className="status-note">{dataStatus.note}</div>
+                <div className="status-timestamp">Checked: {new Date(dataStatus.timestamp).toLocaleString()}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="main-container">
@@ -131,7 +196,7 @@ export default function App() {
         <div className="results-panel">
           {!searched && !loading && (
             <div className="empty-state">
-              <div className="icon">✈</div>
+              <div className="icon">&#9992;</div>
               <h3>Search for flights</h3>
               <p>
                 Enter your origin, destination, and travel date. SuperFlightManager will find direct
@@ -173,7 +238,39 @@ export default function App() {
                 <div className="empty-state">
                   <div className="icon">&#128269;</div>
                   <h3>No flights found</h3>
-                  <p>Try adjusting your filters or search criteria.</p>
+                  {results.diagnostics ? (
+                    <div className="diagnostics-panel">
+                      <div className={`diagnostics-reason ${results.diagnostics.reason === 'ALL_FILTERED_OUT' ? 'filtered' : 'none'}`}>
+                        {results.diagnostics.reason === 'ALL_FILTERED_OUT' ? (
+                          <>
+                            <strong>Cause: Filters too restrictive</strong>
+                            <p>{results.diagnostics.explanation}</p>
+                          </>
+                        ) : (
+                          <>
+                            <strong>Cause: No routes generated</strong>
+                            <p>{results.diagnostics.explanation}</p>
+                          </>
+                        )}
+                      </div>
+                      {results.diagnostics.reason === 'ALL_FILTERED_OUT' &&
+                        Object.keys(results.diagnostics.filterBreakdown).length > 0 && (
+                        <div className="diagnostics-filters">
+                          <h4>Filter Impact:</h4>
+                          {Object.entries(results.diagnostics.filterBreakdown).map(([name, info]) => (
+                            <div key={name} className="diagnostics-filter-row">
+                              <span className="filter-name">{name}</span>
+                              <span className="filter-impact">
+                                removes {info.removed} of {info.total} ({Math.round(info.removed / info.total * 100)}%)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p>Try adjusting your filters or search criteria.</p>
+                  )}
                 </div>
               ) : (
                 results.results.map(it => (

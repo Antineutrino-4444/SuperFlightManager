@@ -4,7 +4,7 @@ const { buildItineraries, filterItineraries } = require('../services/pathBuilder
 const { convertCurrency, getExchangeRates } = require('../services/currency');
 const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
-const { AIRCRAFT_TYPES } = require('../data/aircraft');
+const { AIRCRAFT_TYPES, AIRCRAFT_FAMILIES } = require('../data/aircraft');
 const { CURRENCIES } = require('../data/currencies');
 
 // GET /api/airports - search airports
@@ -43,6 +43,74 @@ router.get('/alliances', (req, res) => {
 // GET /api/aircraft
 router.get('/aircraft', (req, res) => {
   res.json(AIRCRAFT_TYPES);
+});
+
+// GET /api/aircraft-families
+router.get('/aircraft-families', (req, res) => {
+  res.json(AIRCRAFT_FAMILIES);
+});
+
+// GET /api/status - check connectivity to all data sources
+router.get('/status', async (req, res) => {
+  const status = {
+    timestamp: new Date().toISOString(),
+    endpoints: {},
+  };
+
+  // Check airports data
+  try {
+    const airportCount = Object.keys(AIRPORTS).length;
+    status.endpoints.airports = { ok: true, count: airportCount, message: `${airportCount} airports loaded` };
+  } catch (e) {
+    status.endpoints.airports = { ok: false, count: 0, message: e.message };
+  }
+
+  // Check airlines data
+  try {
+    const airlineCount = AIRLINES.length;
+    status.endpoints.airlines = { ok: true, count: airlineCount, message: `${airlineCount} airlines loaded` };
+  } catch (e) {
+    status.endpoints.airlines = { ok: false, count: 0, message: e.message };
+  }
+
+  // Check aircraft data
+  try {
+    const aircraftCount = AIRCRAFT_TYPES.length;
+    const familyCount = Object.keys(AIRCRAFT_FAMILIES).length;
+    status.endpoints.aircraft = { ok: true, count: aircraftCount, message: `${aircraftCount} aircraft types in ${familyCount} families` };
+  } catch (e) {
+    status.endpoints.aircraft = { ok: false, count: 0, message: e.message };
+  }
+
+  // Check currencies data
+  try {
+    const currCount = CURRENCIES.length;
+    status.endpoints.currencies = { ok: true, count: currCount, message: `${currCount} currencies loaded` };
+  } catch (e) {
+    status.endpoints.currencies = { ok: false, count: 0, message: e.message };
+  }
+
+  // Check exchange rate API
+  try {
+    const rates = await getExchangeRates();
+    const rateCount = Object.keys(rates).length;
+    status.endpoints.exchangeRates = { ok: rateCount > 0, count: rateCount, message: rateCount > 0 ? `${rateCount} exchange rates available` : 'Using fallback rates' };
+  } catch (e) {
+    status.endpoints.exchangeRates = { ok: false, count: 0, message: `Exchange rate API error: ${e.message}` };
+  }
+
+  // Check alliances
+  try {
+    status.endpoints.alliances = { ok: true, count: ALLIANCES.length, message: `${ALLIANCES.length} alliances loaded` };
+  } catch (e) {
+    status.endpoints.alliances = { ok: false, count: 0, message: e.message };
+  }
+
+  status.allOk = Object.values(status.endpoints).every(e => e.ok);
+  status.dataSource = 'Mock data generator (no external flight API configured)';
+  status.note = 'Flight data is generated algorithmically based on airport distances, airline routes, and aircraft capabilities. Results are realistic simulations, not live booking data.';
+
+  res.json(status);
 });
 
 // GET /api/currencies
@@ -87,11 +155,59 @@ router.post('/search', async (req, res) => {
       return res.status(400).json({ error: `Unknown airport: ${destination}` });
     }
 
+    // Expand aircraft family selections into individual codes
+    const expandedFilters = { ...filters };
+    if (filters.aircraftFamilies && filters.aircraftFamilies.length > 0) {
+      const familyCodes = [];
+      for (const familyName of filters.aircraftFamilies) {
+        const fam = AIRCRAFT_FAMILIES[familyName];
+        if (fam) familyCodes.push(...fam.codes);
+      }
+      // Merge with any individually selected aircraft types
+      const existing = filters.aircraftTypes || [];
+      expandedFilters.aircraftTypes = [...new Set([...existing, ...familyCodes])];
+    }
+
     // Build all possible itineraries
-    const itineraries = buildItineraries(origin, destination, date, filters);
+    const itineraries = buildItineraries(origin, destination, date, expandedFilters);
 
     // Apply filters
-    const filtered = filterItineraries(itineraries, filters);
+    const filtered = filterItineraries(itineraries, expandedFilters);
+
+    // Build diagnostics for when results are empty
+    let diagnostics = null;
+    if (filtered.length === 0) {
+      diagnostics = {
+        totalGenerated: itineraries.length,
+        filterBreakdown: {},
+      };
+      if (itineraries.length === 0) {
+        diagnostics.reason = 'NO_ITINERARIES_GENERATED';
+        diagnostics.explanation = `The path builder could not generate any itineraries between ${origin} and ${destination}. This may happen if both airports are valid but no connecting hub paths exist within the distance constraints.`;
+      } else {
+        diagnostics.reason = 'ALL_FILTERED_OUT';
+        diagnostics.explanation = `${itineraries.length} itinerary(ies) were generated but all were removed by your active filters. Try relaxing your filter criteria.`;
+        // Test each filter individually to show which ones are removing results
+        const filterTests = [
+          { key: 'aircraftTypes', label: 'Aircraft Type', test: (it) => expandedFilters.aircraftTypes?.length > 0 ? it.aircraftTypes.some(ac => expandedFilters.aircraftTypes.includes(ac)) : true },
+          { key: 'airlines', label: 'Airlines', test: (it) => expandedFilters.airlines?.length > 0 ? it.legs.some(leg => expandedFilters.airlines.includes(leg.airline)) : true },
+          { key: 'alliances', label: 'Alliances', test: (it) => expandedFilters.alliances?.length > 0 ? it.alliances.some(a => expandedFilters.alliances.includes(a)) : true },
+          { key: 'maxStops', label: 'Max Stops', test: (it) => expandedFilters.maxStops !== undefined ? it.stops <= expandedFilters.maxStops : true },
+          { key: 'allowOvernight', label: 'Overnight Layover', test: (it) => expandedFilters.allowOvernight === false ? !it.hasOvernightLayover : true },
+          { key: 'maxPrice', label: 'Max Price', test: (it) => expandedFilters.maxPrice ? it.totalPriceUSD <= expandedFilters.maxPrice : true },
+        ];
+        for (const ft of filterTests) {
+          const passing = itineraries.filter(ft.test).length;
+          if (passing < itineraries.length) {
+            diagnostics.filterBreakdown[ft.label] = {
+              passing,
+              total: itineraries.length,
+              removed: itineraries.length - passing,
+            };
+          }
+        }
+      }
+    }
 
     // Convert currency if needed
     let results = filtered;
@@ -133,6 +249,7 @@ router.post('/search', async (req, res) => {
       currency,
       resultCount: results.length,
       results,
+      diagnostics,
     });
   } catch (err) {
     console.error('Search error:', err);
