@@ -52,3 +52,28 @@ export async function fetchDataStatus() {
   const res = await fetch(`${API_BASE}/status`);
   return res.json();
 }
+
+export async function fetchSettings() {
+  const res = await fetch(`${API_BASE}/settings`);
+  return res.json();
+}
+
+export async function saveSettings(settings) {
+  const res = await fetch(`${API_BASE}/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'Failed to save settings');
+  }
+  return res.json();
+}
+
+export async function testAmadeusConnection() {
+  const res = await fetch(`${API_BASE}/settings/test-amadeus`, {
+    method: 'POST',
+  });
+  return res.json();
+}

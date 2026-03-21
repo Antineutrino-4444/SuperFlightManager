@@ -6,6 +6,8 @@ const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
 const { AIRCRAFT_TYPES, AIRCRAFT_FAMILIES } = require('../data/aircraft');
 const { CURRENCIES } = require('../data/currencies');
+const { getSettings, saveSettings, isAmadeusConfigured } = require('../services/settings');
+const { searchAmadeusFlights, testAmadeusConnection } = require('../services/amadeus');
 
 // GET /api/airports - search airports
 router.get('/airports', (req, res) => {
@@ -106,9 +108,29 @@ router.get('/status', async (req, res) => {
     status.endpoints.alliances = { ok: false, count: 0, message: e.message };
   }
 
+  // Check Amadeus API
+  if (isAmadeusConfigured()) {
+    try {
+      const amadeusResult = await testAmadeusConnection();
+      status.endpoints.amadeus = {
+        ok: amadeusResult.ok,
+        count: amadeusResult.ok ? 1 : 0,
+        message: amadeusResult.message,
+      };
+    } catch (e) {
+      status.endpoints.amadeus = { ok: false, count: 0, message: e.message };
+    }
+  } else {
+    status.endpoints.amadeus = { ok: false, count: 0, message: 'Not configured — go to Settings to add your API key' };
+  }
+
   status.allOk = Object.values(status.endpoints).every(e => e.ok);
-  status.dataSource = 'Mock data generator (no external flight API configured)';
-  status.note = 'Flight data is generated algorithmically based on airport distances, airline routes, and aircraft capabilities. Results are realistic simulations, not live booking data.';
+  status.dataSource = isAmadeusConfigured()
+    ? 'Amadeus Self-Service API (real flight data)'
+    : 'Mock data generator (configure Amadeus API key in Settings for real flights)';
+  status.note = isAmadeusConfigured()
+    ? 'Flight data is sourced from the Amadeus API with real-time pricing and availability.'
+    : 'Flight data is generated algorithmically. Configure your Amadeus API key in Settings to get real flight data.';
 
   res.json(status);
 });
@@ -131,6 +153,52 @@ router.get('/exchange-rates', async (req, res) => {
 // GET /api/regions
 router.get('/regions', (req, res) => {
   res.json({ continents: CONTINENTS, regions: REGIONS });
+});
+
+// GET /api/settings - get current settings (masks secrets)
+router.get('/settings', (req, res) => {
+  const settings = getSettings();
+  res.json({
+    amadeusApiKey: settings.amadeusApiKey ? maskSecret(settings.amadeusApiKey) : '',
+    amadeusApiSecret: settings.amadeusApiSecret ? maskSecret(settings.amadeusApiSecret) : '',
+    amadeusEnvironment: settings.amadeusEnvironment,
+    amadeusConfigured: isAmadeusConfigured(),
+  });
+});
+
+function maskSecret(s) {
+  if (!s || s.length < 8) return '****';
+  return s.slice(0, 4) + '****' + s.slice(-4);
+}
+
+// POST /api/settings - save settings
+router.post('/settings', (req, res) => {
+  try {
+    const { amadeusApiKey, amadeusApiSecret, amadeusEnvironment } = req.body;
+    const updates = {};
+    if (amadeusApiKey !== undefined) updates.amadeusApiKey = amadeusApiKey;
+    if (amadeusApiSecret !== undefined) updates.amadeusApiSecret = amadeusApiSecret;
+    if (amadeusEnvironment !== undefined) updates.amadeusEnvironment = amadeusEnvironment;
+    const saved = saveSettings(updates);
+    res.json({
+      amadeusApiKey: saved.amadeusApiKey ? maskSecret(saved.amadeusApiKey) : '',
+      amadeusApiSecret: saved.amadeusApiSecret ? maskSecret(saved.amadeusApiSecret) : '',
+      amadeusEnvironment: saved.amadeusEnvironment,
+      amadeusConfigured: isAmadeusConfigured(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save settings', details: err.message });
+  }
+});
+
+// POST /api/settings/test-amadeus - test Amadeus API connection
+router.post('/settings/test-amadeus', async (req, res) => {
+  try {
+    const result = await testAmadeusConnection();
+    res.json(result);
+  } catch (err) {
+    res.json({ ok: false, message: err.message });
+  }
 });
 
 // POST /api/search - main flight search
@@ -168,10 +236,25 @@ router.post('/search', async (req, res) => {
       expandedFilters.aircraftTypes = [...new Set([...existing, ...familyCodes])];
     }
 
-    // Build all possible itineraries
-    const itineraries = buildItineraries(origin, destination, date, expandedFilters);
+    // Determine data source: Amadeus API or mock generator
+    let itineraries;
+    let dataSource = 'mock';
+    let amadeusError = null;
 
-    // Apply filters
+    if (isAmadeusConfigured()) {
+      try {
+        itineraries = await searchAmadeusFlights(origin, destination, date, expandedFilters);
+        dataSource = 'amadeus';
+      } catch (err) {
+        console.error('Amadeus API failed, falling back to mock:', err.message);
+        amadeusError = err.message;
+        itineraries = buildItineraries(origin, destination, date, expandedFilters);
+      }
+    } else {
+      itineraries = buildItineraries(origin, destination, date, expandedFilters);
+    }
+
+    // Apply filters (works the same for both data sources)
     const filtered = filterItineraries(itineraries, expandedFilters);
 
     // Build diagnostics for when results are empty
@@ -183,7 +266,9 @@ router.post('/search', async (req, res) => {
       };
       if (itineraries.length === 0) {
         diagnostics.reason = 'NO_ITINERARIES_GENERATED';
-        diagnostics.explanation = `The path builder could not generate any itineraries between ${origin} and ${destination}. This may happen if both airports are valid but no connecting hub paths exist within the distance constraints.`;
+        diagnostics.explanation = dataSource === 'amadeus'
+          ? `The Amadeus API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`
+          : `The path builder could not generate any itineraries between ${origin} and ${destination}. This may happen if both airports are valid but no connecting hub paths exist within the distance constraints.`;
       } else {
         diagnostics.reason = 'ALL_FILTERED_OUT';
         diagnostics.explanation = `${itineraries.length} itinerary(ies) were generated but all were removed by your active filters. Try relaxing your filter criteria.`;
@@ -250,6 +335,8 @@ router.post('/search', async (req, res) => {
       resultCount: results.length,
       results,
       diagnostics,
+      dataSource,
+      amadeusError,
     });
   } catch (err) {
     console.error('Search error:', err);

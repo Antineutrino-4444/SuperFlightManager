@@ -1002,6 +1002,213 @@ body {
   text-align: right;
 }
 
+/* Settings Modal */
+.settings-modal {
+  max-width: 620px;
+}
+
+.settings-status-banner {
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+}
+
+.settings-status-banner.configured {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.settings-status-banner.not-configured {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.settings-section {
+  margin-bottom: 1rem;
+}
+
+.settings-section h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+  color: var(--primary-dark);
+}
+
+.settings-help {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.settings-instructions {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.settings-instructions strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.82rem;
+}
+
+.settings-instructions ol {
+  margin: 0.3rem 0 0.5rem 1.2rem;
+  padding: 0;
+}
+
+.settings-instructions li {
+  margin-bottom: 0.2rem;
+}
+
+.settings-instructions a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.settings-pricing-note {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #bae6fd;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.settings-field {
+  margin-bottom: 0.75rem;
+}
+
+.settings-field label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.settings-field input,
+.settings-field select {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-family: monospace;
+  background: white;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.settings-field select {
+  font-family: inherit;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.settings-save-btn {
+  padding: 0.5rem 1.2rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-save-btn:hover { opacity: 0.9; }
+.settings-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.settings-test-btn {
+  padding: 0.5rem 1.2rem;
+  background: var(--secondary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-test-btn:hover { opacity: 0.9; }
+.settings-test-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.settings-clear-btn {
+  padding: 0.5rem 1.2rem;
+  background: white;
+  color: var(--danger);
+  border: 1.5px solid var(--danger);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-clear-btn:hover { background: #fef2f2; }
+.settings-clear-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.settings-msg {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+}
+
+.settings-msg.ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.settings-msg.err {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* Data Source Tag */
+.data-source-tag {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.data-source-tag.live {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.data-source-tag.mock {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.amadeus-fallback-warning {
+  font-size: 0.78rem;
+  color: var(--danger);
+  margin-top: 0.3rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header {

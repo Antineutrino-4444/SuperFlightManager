@@ -3,6 +3,7 @@ import AirportInput from './components/AirportInput';
 import FilterPanel from './components/FilterPanel';
 import ItineraryCard from './components/ItineraryCard';
 import { searchFlights, fetchCurrencies, fetchDataStatus } from './services/api';
+import SettingsModal from './components/SettingsModal';
 
 export default function App() {
   const [origin, setOrigin] = useState('');
@@ -26,6 +27,9 @@ export default function App() {
   const [dataStatus, setDataStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+
+  // Settings
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     fetchCurrencies().then(setCurrencies);
@@ -91,6 +95,12 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             className="status-btn"
+            onClick={() => setShowSettings(true)}
+          >
+            Settings
+          </button>
+          <button
+            className="status-btn"
             onClick={handleCheckStatus}
             disabled={statusLoading}
           >
@@ -106,6 +116,9 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Settings Modal */}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
 
       {/* Data Status Modal */}
       {showStatus && dataStatus && (
@@ -221,7 +234,15 @@ export default function App() {
                   </h2>
                   <span className="results-count">
                     {results.resultCount} itineraries found
+                    <span className={`data-source-tag ${results.dataSource === 'amadeus' ? 'live' : 'mock'}`}>
+                      {results.dataSource === 'amadeus' ? 'Live Data' : 'Mock Data'}
+                    </span>
                   </span>
+                  {results.amadeusError && (
+                    <div className="amadeus-fallback-warning">
+                      Amadeus API failed: {results.amadeusError}. Showing mock results.
+                    </div>
+                  )}
                 </div>
                 <div className="sort-controls">
                   <label>Sort by:</label>
