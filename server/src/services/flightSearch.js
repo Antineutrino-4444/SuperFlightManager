@@ -87,17 +87,16 @@ function getAirlinesForRoute(origin, destination) {
     return false;
   });
 
-  // Shuffle only the additional candidates, guaranteed carriers always included
-  const shuffled = additionalCandidates.sort(() => Math.random() - 0.5);
-  const maxAdditional = Math.max(0, 10 - guaranteed.length);
-  return [...guaranteed, ...shuffled.slice(0, maxAdditional)];
+  // Include all plausible airlines - no shuffle, no cap
+  return [...guaranteed, ...additionalCandidates];
 }
 
 // Generate a realistic departure time
 function generateDepartureTime(date, index) {
   const hours = [6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23];
   const h = hours[index % hours.length];
-  const m = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55][Math.floor(Math.random() * 12)];
+  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+  const m = minutes[index % minutes.length];
   return `${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
@@ -130,19 +129,19 @@ function generateDirectFlights(origin, destination, date, numFlights = null) {
   const airlines = getAirlinesForRoute(origin, destination);
   const tzOffset = estimateTimezoneOffset(origin, destination);
 
-  const count = numFlights || Math.min(airlines.length, Math.max(2, Math.floor(Math.random() * 5) + 2));
+  const count = numFlights || airlines.length;
   const flights = [];
 
   for (let i = 0; i < count; i++) {
     const airline = airlines[i % airlines.length];
-    const aircraft = aircraftCodes[Math.floor(Math.random() * aircraftCodes.length)];
+    const aircraft = aircraftCodes[i % aircraftCodes.length];
     const aircraftInfo = AIRCRAFT_TYPES.find(a => a.code === aircraft);
     const depTime = generateDepartureTime(date, i);
     const arrTime = calculateArrival(depTime, distance, tzOffset);
 
-    // Price based on distance + randomness
-    const basePrice = Math.round(distance * 0.08 + Math.random() * 150 + 50);
-    const flightNumber = `${airline.code}${Math.floor(Math.random() * 9000) + 100}`;
+    // Price based on distance + deterministic per-airline variation
+    const basePrice = Math.round(distance * 0.08 + ((i * 37 + 13) % 150) + 50);
+    const flightNumber = `${airline.code}${100 + (i * 7 + 3) % 900}`;
 
     const speed = distance > 3000 ? 850 : 750;
     const durationMinutes = Math.round((distance / speed) * 60);
@@ -167,7 +166,7 @@ function generateDirectFlights(origin, destination, date, numFlights = null) {
       aircraftCategory: aircraftInfo ? aircraftInfo.category : 'Unknown',
       priceUSD: basePrice,
       currency: 'USD',
-      fareClass: ['Economy', 'Premium Economy', 'Business', 'First'][Math.floor(Math.random() * 2)], // mostly economy
+      fareClass: ['Economy', 'Premium Economy', 'Business', 'First'][i % 4],
       distanceKm: Math.round(distance),
       distanceMiles: Math.round(distance * 0.621371),
       loyaltyProgram: airline.loyalty,
