@@ -91,9 +91,7 @@ function buildItineraries(origin, destination, date, filters = {}) {
 
   // 2. One-stop connections
   const connections = findConnectionAirports(origin, destination, 1);
-  const oneStopLimit = Math.min(connections.length, 15); // limit for performance
-
-  for (let i = 0; i < oneStopLimit; i++) {
+  for (let i = 0; i < connections.length; i++) {
     const hub = connections[i];
     const leg1Flights = generateDirectFlights(origin, hub, date, 2);
     const leg2Flights = generateDirectFlights(hub, destination, date, 2);
@@ -142,13 +140,12 @@ function buildItineraries(origin, destination, date, filters = {}) {
 
   if (maxStops < 2) return results;
 
-  // 3. Two-stop connections (limited for performance)
-  const topHubs = connections.slice(0, 6);
-  for (let i = 0; i < topHubs.length; i++) {
-    for (let j = 0; j < topHubs.length; j++) {
+  // 3. Two-stop connections (all hub combinations)
+  for (let i = 0; i < connections.length; i++) {
+    for (let j = 0; j < connections.length; j++) {
       if (i === j) continue;
-      const hub1 = topHubs[i];
-      const hub2 = topHubs[j];
+      const hub1 = connections[i];
+      const hub2 = connections[j];
       if (hub1 === hub2) continue;
 
       // Verify hub2 is somewhat reasonable from hub1 toward destination
@@ -312,7 +309,7 @@ function filterItineraries(itineraries, filters = {}) {
     }
   });
 
-  return results.slice(0, 50); // limit results
+  return results;
 }
 
 module.exports = { buildItineraries, filterItineraries, isOvernightLayover };
