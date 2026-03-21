@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 function formatTime(isoString) {
   if (!isoString) return '--:--';
@@ -28,10 +28,60 @@ function formatPrice(amount, currency, currencies) {
   return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function FlightLegDetail({ leg, currency, currencies }) {
+  return (
+    <div className="leg-detail-panel">
+      <div className="leg-detail-grid">
+        <div className="leg-detail-section">
+          <h4>Flight Info</h4>
+          <div className="detail-row"><span>Flight</span><span>{leg.flightNumber}</span></div>
+          <div className="detail-row"><span>Airline</span><span>{leg.airlineName}</span></div>
+          <div className="detail-row"><span>Alliance</span><span>{leg.alliance || 'None'}</span></div>
+          <div className="detail-row"><span>Fare Class</span><span>{leg.fareClass}</span></div>
+        </div>
+        <div className="leg-detail-section">
+          <h4>Aircraft</h4>
+          <div className="detail-row"><span>Model</span><span>{leg.aircraftModel}</span></div>
+          <div className="detail-row"><span>Type Code</span><span>{leg.aircraft}</span></div>
+          <div className="detail-row"><span>Category</span><span>{leg.aircraftCategory}</span></div>
+        </div>
+        <div className="leg-detail-section">
+          <h4>Route</h4>
+          <div className="detail-row">
+            <span>From</span>
+            <span>{leg.originCity} ({leg.origin})</span>
+          </div>
+          <div className="detail-row">
+            <span>To</span>
+            <span>{leg.destinationCity} ({leg.destination})</span>
+          </div>
+          <div className="detail-row"><span>Distance</span><span>{leg.distanceMiles.toLocaleString()} mi / {leg.distanceKm.toLocaleString()} km</span></div>
+          <div className="detail-row"><span>Duration</span><span>{formatDuration(leg.durationMinutes)}</span></div>
+        </div>
+        <div className="leg-detail-section">
+          <h4>Pricing & Loyalty</h4>
+          <div className="detail-row">
+            <span>Leg Price</span>
+            <span>{formatPrice(leg.displayPrice || leg.priceUSD, leg.displayCurrency || currency, currencies)}</span>
+          </div>
+          <div className="detail-row"><span>Loyalty Program</span><span>{leg.loyaltyProgram}</span></div>
+          <div className="detail-row"><span>Est. Miles Earned</span><span>{leg.estimatedMiles.toLocaleString()}</span></div>
+          <div className="detail-row"><span>Source</span><span>{leg.source}</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ItineraryCard({ itinerary, currency, currencies }) {
   const it = itinerary;
   const firstLeg = it.legs[0];
   const lastLeg = it.legs[it.legs.length - 1];
+  const [expandedLegs, setExpandedLegs] = useState({});
+
+  const toggleLeg = (legId) => {
+    setExpandedLegs(prev => ({ ...prev, [legId]: !prev[legId] }));
+  };
 
   return (
     <div className="itinerary-card">
@@ -89,7 +139,11 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
               </div>
             )}
 
-            <div className="flight-leg">
+            <div
+              className={`flight-leg ${expandedLegs[leg.id] ? 'expanded' : ''}`}
+              onClick={() => toggleLeg(leg.id)}
+              title="Click for flight details"
+            >
               <div className="leg-time">
                 <div className="time">{formatTime(leg.departureTime)}</div>
                 <div className="date-label">{formatDate(leg.departureTime)}</div>
@@ -102,6 +156,10 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
                   {formatDuration(leg.durationMinutes)}
                   <br />
                   <span style={{ fontSize: '0.65rem' }}>{leg.distanceMiles} mi</span>
+                  <br />
+                  <span className="leg-expand-hint">
+                    {expandedLegs[leg.id] ? 'click to collapse' : 'click for details'}
+                  </span>
                 </div>
                 <div className="leg-line"></div>
               </div>
@@ -123,6 +181,11 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
                 </div>
               </div>
             </div>
+
+            {/* Expanded detail panel */}
+            {expandedLegs[leg.id] && (
+              <FlightLegDetail leg={leg} currency={currency} currencies={currencies} />
+            )}
           </React.Fragment>
         ))}
       </div>
