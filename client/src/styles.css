@@ -1182,33 +1182,6 @@ body {
   color: #991b1b;
 }
 
-/* Data Source Tag */
-.data-source-tag {
-  display: inline-block;
-  padding: 0.1rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  margin-left: 0.5rem;
-  vertical-align: middle;
-}
-
-.data-source-tag.live {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.data-source-tag.mock {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.amadeus-fallback-warning {
-  font-size: 0.78rem;
-  color: var(--danger);
-  margin-top: 0.3rem;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
   .header {

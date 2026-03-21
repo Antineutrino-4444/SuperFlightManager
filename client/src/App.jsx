@@ -234,15 +234,7 @@ export default function App() {
                   </h2>
                   <span className="results-count">
                     {results.resultCount} itineraries found
-                    <span className={`data-source-tag ${results.dataSource === 'amadeus' ? 'live' : 'mock'}`}>
-                      {results.dataSource === 'amadeus' ? 'Live Data' : 'Mock Data'}
-                    </span>
                   </span>
-                  {results.amadeusError && (
-                    <div className="amadeus-fallback-warning">
-                      Amadeus API failed: {results.amadeusError}. Showing mock results.
-                    </div>
-                  )}
                 </div>
                 <div className="sort-controls">
                   <label>Sort by:</label>

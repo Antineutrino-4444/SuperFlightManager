@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { buildItineraries, filterItineraries } = require('../services/pathBuilder');
+const { filterItineraries } = require('../services/pathBuilder');
 const { convertCurrency, getExchangeRates } = require('../services/currency');
 const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
@@ -127,10 +127,10 @@ router.get('/status', async (req, res) => {
   status.allOk = Object.values(status.endpoints).every(e => e.ok);
   status.dataSource = isAmadeusConfigured()
     ? 'Amadeus Self-Service API (real flight data)'
-    : 'Mock data generator (configure Amadeus API key in Settings for real flights)';
+    : 'Not configured — go to Settings to add your Amadeus API key';
   status.note = isAmadeusConfigured()
     ? 'Flight data is sourced from the Amadeus API with real-time pricing and availability.'
-    : 'Flight data is generated algorithmically. Configure your Amadeus API key in Settings to get real flight data.';
+    : 'You must configure your Amadeus API key in Settings before searching for flights.';
 
   res.json(status);
 });
@@ -236,22 +236,23 @@ router.post('/search', async (req, res) => {
       expandedFilters.aircraftTypes = [...new Set([...existing, ...familyCodes])];
     }
 
-    // Determine data source: Amadeus API or mock generator
+    // Require Amadeus API to be configured
+    if (!isAmadeusConfigured()) {
+      return res.status(400).json({
+        error: 'Amadeus API key is not configured. Go to Settings to add your API key and secret.',
+      });
+    }
+
     let itineraries;
-    let dataSource = 'mock';
     let amadeusError = null;
 
-    if (isAmadeusConfigured()) {
-      try {
-        itineraries = await searchAmadeusFlights(origin, destination, date, expandedFilters);
-        dataSource = 'amadeus';
-      } catch (err) {
-        console.error('Amadeus API failed, falling back to mock:', err.message);
-        amadeusError = err.message;
-        itineraries = buildItineraries(origin, destination, date, expandedFilters);
-      }
-    } else {
-      itineraries = buildItineraries(origin, destination, date, expandedFilters);
+    try {
+      itineraries = await searchAmadeusFlights(origin, destination, date, expandedFilters);
+    } catch (err) {
+      console.error('Amadeus API error:', err.message);
+      return res.status(502).json({
+        error: `Amadeus API error: ${err.message}`,
+      });
     }
 
     // Apply filters (works the same for both data sources)
@@ -266,9 +267,7 @@ router.post('/search', async (req, res) => {
       };
       if (itineraries.length === 0) {
         diagnostics.reason = 'NO_ITINERARIES_GENERATED';
-        diagnostics.explanation = dataSource === 'amadeus'
-          ? `The Amadeus API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`
-          : `The path builder could not generate any itineraries between ${origin} and ${destination}. This may happen if both airports are valid but no connecting hub paths exist within the distance constraints.`;
+        diagnostics.explanation = `The Amadeus API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`;
       } else {
         diagnostics.reason = 'ALL_FILTERED_OUT';
         diagnostics.explanation = `${itineraries.length} itinerary(ies) were generated but all were removed by your active filters. Try relaxing your filter criteria.`;
@@ -335,8 +334,6 @@ router.post('/search', async (req, res) => {
       resultCount: results.length,
       results,
       diagnostics,
-      dataSource,
-      amadeusError,
     });
   } catch (err) {
     console.error('Search error:', err);
