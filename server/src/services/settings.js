@@ -4,9 +4,7 @@ const path = require('path');
 const SETTINGS_FILE = path.join(__dirname, '../../.settings.json');
 
 const DEFAULT_SETTINGS = {
-  amadeusApiKey: '',
-  amadeusApiSecret: '',
-  amadeusEnvironment: 'test', // 'test' or 'production'
+  kiwiApiKey: '',
 };
 
 function loadSettings() {
@@ -32,9 +30,9 @@ function getSettings() {
   return loadSettings();
 }
 
-function isAmadeusConfigured() {
+function isKiwiConfigured() {
   const s = loadSettings();
-  return !!(s.amadeusApiKey && s.amadeusApiSecret);
+  return !!s.kiwiApiKey;
 }
 
-module.exports = { getSettings, saveSettings, isAmadeusConfigured };
+module.exports = { getSettings, saveSettings, isKiwiConfigured };

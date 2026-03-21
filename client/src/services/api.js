@@ -71,8 +71,8 @@ export async function saveSettings(settings) {
   return res.json();
 }
 
-export async function testAmadeusConnection() {
-  const res = await fetch(`${API_BASE}/settings/test-amadeus`, {
+export async function testKiwiConnection() {
+  const res = await fetch(`${API_BASE}/settings/test-kiwi`, {
     method: 'POST',
   });
   return res.json();

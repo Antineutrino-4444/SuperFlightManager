@@ -6,8 +6,8 @@ const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
 const { AIRCRAFT_TYPES, AIRCRAFT_FAMILIES } = require('../data/aircraft');
 const { CURRENCIES } = require('../data/currencies');
-const { getSettings, saveSettings, isAmadeusConfigured } = require('../services/settings');
-const { searchAmadeusFlights, testAmadeusConnection } = require('../services/amadeus');
+const { getSettings, saveSettings, isKiwiConfigured } = require('../services/settings');
+const { searchKiwiFlights, testKiwiConnection } = require('../services/kiwi');
 
 // GET /api/airports - search airports
 router.get('/airports', (req, res) => {
@@ -108,29 +108,29 @@ router.get('/status', async (req, res) => {
     status.endpoints.alliances = { ok: false, count: 0, message: e.message };
   }
 
-  // Check Amadeus API
-  if (isAmadeusConfigured()) {
+  // Check Kiwi API
+  if (isKiwiConfigured()) {
     try {
-      const amadeusResult = await testAmadeusConnection();
-      status.endpoints.amadeus = {
-        ok: amadeusResult.ok,
-        count: amadeusResult.ok ? 1 : 0,
-        message: amadeusResult.message,
+      const kiwiResult = await testKiwiConnection();
+      status.endpoints.kiwi = {
+        ok: kiwiResult.ok,
+        count: kiwiResult.ok ? 1 : 0,
+        message: kiwiResult.message,
       };
     } catch (e) {
-      status.endpoints.amadeus = { ok: false, count: 0, message: e.message };
+      status.endpoints.kiwi = { ok: false, count: 0, message: e.message };
     }
   } else {
-    status.endpoints.amadeus = { ok: false, count: 0, message: 'Not configured — go to Settings to add your API key' };
+    status.endpoints.kiwi = { ok: false, count: 0, message: 'Not configured — go to Settings to add your API key' };
   }
 
   status.allOk = Object.values(status.endpoints).every(e => e.ok);
-  status.dataSource = isAmadeusConfigured()
-    ? 'Amadeus Self-Service API (real flight data)'
-    : 'Not configured — go to Settings to add your Amadeus API key';
-  status.note = isAmadeusConfigured()
-    ? 'Flight data is sourced from the Amadeus API with real-time pricing and availability.'
-    : 'You must configure your Amadeus API key in Settings before searching for flights.';
+  status.dataSource = isKiwiConfigured()
+    ? 'Kiwi Tequila API (real flight data, 800+ airlines)'
+    : 'Not configured — go to Settings to add your Kiwi API key';
+  status.note = isKiwiConfigured()
+    ? 'Flight data is sourced from the Kiwi Tequila API with real-time pricing and availability.'
+    : 'You must configure your Kiwi API key in Settings before searching for flights.';
 
   res.json(status);
 });
@@ -159,10 +159,8 @@ router.get('/regions', (req, res) => {
 router.get('/settings', (req, res) => {
   const settings = getSettings();
   res.json({
-    amadeusApiKey: settings.amadeusApiKey ? maskSecret(settings.amadeusApiKey) : '',
-    amadeusApiSecret: settings.amadeusApiSecret ? maskSecret(settings.amadeusApiSecret) : '',
-    amadeusEnvironment: settings.amadeusEnvironment,
-    amadeusConfigured: isAmadeusConfigured(),
+    kiwiApiKey: settings.kiwiApiKey ? maskSecret(settings.kiwiApiKey) : '',
+    kiwiConfigured: isKiwiConfigured(),
   });
 });
 
@@ -174,27 +172,23 @@ function maskSecret(s) {
 // POST /api/settings - save settings
 router.post('/settings', (req, res) => {
   try {
-    const { amadeusApiKey, amadeusApiSecret, amadeusEnvironment } = req.body;
+    const { kiwiApiKey } = req.body;
     const updates = {};
-    if (amadeusApiKey !== undefined) updates.amadeusApiKey = amadeusApiKey;
-    if (amadeusApiSecret !== undefined) updates.amadeusApiSecret = amadeusApiSecret;
-    if (amadeusEnvironment !== undefined) updates.amadeusEnvironment = amadeusEnvironment;
+    if (kiwiApiKey !== undefined) updates.kiwiApiKey = kiwiApiKey;
     const saved = saveSettings(updates);
     res.json({
-      amadeusApiKey: saved.amadeusApiKey ? maskSecret(saved.amadeusApiKey) : '',
-      amadeusApiSecret: saved.amadeusApiSecret ? maskSecret(saved.amadeusApiSecret) : '',
-      amadeusEnvironment: saved.amadeusEnvironment,
-      amadeusConfigured: isAmadeusConfigured(),
+      kiwiApiKey: saved.kiwiApiKey ? maskSecret(saved.kiwiApiKey) : '',
+      kiwiConfigured: isKiwiConfigured(),
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save settings', details: err.message });
   }
 });
 
-// POST /api/settings/test-amadeus - test Amadeus API connection
-router.post('/settings/test-amadeus', async (req, res) => {
+// POST /api/settings/test-kiwi - test Kiwi API connection
+router.post('/settings/test-kiwi', async (req, res) => {
   try {
-    const result = await testAmadeusConnection();
+    const result = await testKiwiConnection();
     res.json(result);
   } catch (err) {
     res.json({ ok: false, message: err.message });
@@ -236,22 +230,21 @@ router.post('/search', async (req, res) => {
       expandedFilters.aircraftTypes = [...new Set([...existing, ...familyCodes])];
     }
 
-    // Require Amadeus API to be configured
-    if (!isAmadeusConfigured()) {
+    // Require Kiwi API to be configured
+    if (!isKiwiConfigured()) {
       return res.status(400).json({
-        error: 'Amadeus API key is not configured. Go to Settings to add your API key and secret.',
+        error: 'Kiwi API key is not configured. Go to Settings to add your API key.',
       });
     }
 
     let itineraries;
-    let amadeusError = null;
 
     try {
-      itineraries = await searchAmadeusFlights(origin, destination, date, expandedFilters);
+      itineraries = await searchKiwiFlights(origin, destination, date, expandedFilters);
     } catch (err) {
-      console.error('Amadeus API error:', err.message);
+      console.error('Kiwi API error:', err.message);
       return res.status(502).json({
-        error: `Amadeus API error: ${err.message}`,
+        error: `Kiwi API error: ${err.message}`,
       });
     }
 
@@ -267,7 +260,7 @@ router.post('/search', async (req, res) => {
       };
       if (itineraries.length === 0) {
         diagnostics.reason = 'NO_ITINERARIES_GENERATED';
-        diagnostics.explanation = `The Amadeus API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`;
+        diagnostics.explanation = `The Kiwi API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`;
       } else {
         diagnostics.reason = 'ALL_FILTERED_OUT';
         diagnostics.explanation = `${itineraries.length} itinerary(ies) were generated but all were removed by your active filters. Try relaxing your filter criteria.`;

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSettings, saveSettings as apiSaveSettings, testAmadeusConnection } from '../services/api';
+import { fetchSettings, saveSettings as apiSaveSettings, testKiwiConnection } from '../services/api';
 
 export default function SettingsModal({ onClose }) {
   const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
-  const [environment, setEnvironment] = useState('test');
   const [configured, setConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -14,10 +12,8 @@ export default function SettingsModal({ onClose }) {
 
   useEffect(() => {
     fetchSettings().then(data => {
-      setApiKey(data.amadeusApiKey || '');
-      setApiSecret(data.amadeusApiSecret || '');
-      setEnvironment(data.amadeusEnvironment || 'test');
-      setConfigured(data.amadeusConfigured);
+      setApiKey(data.kiwiApiKey || '');
+      setConfigured(data.kiwiConfigured);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -28,13 +24,10 @@ export default function SettingsModal({ onClose }) {
     setTestResult(null);
     try {
       const result = await apiSaveSettings({
-        amadeusApiKey: apiKey,
-        amadeusApiSecret: apiSecret,
-        amadeusEnvironment: environment,
+        kiwiApiKey: apiKey,
       });
-      setConfigured(result.amadeusConfigured);
-      setApiKey(result.amadeusApiKey);
-      setApiSecret(result.amadeusApiSecret);
+      setConfigured(result.kiwiConfigured);
+      setApiKey(result.kiwiApiKey);
       setSaveMsg({ ok: true, text: 'Settings saved.' });
     } catch (err) {
       setSaveMsg({ ok: false, text: err.message });
@@ -47,7 +40,7 @@ export default function SettingsModal({ onClose }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await testAmadeusConnection();
+      const result = await testKiwiConnection();
       setTestResult(result);
     } catch (err) {
       setTestResult({ ok: false, message: err.message });
@@ -62,15 +55,11 @@ export default function SettingsModal({ onClose }) {
     setTestResult(null);
     try {
       const result = await apiSaveSettings({
-        amadeusApiKey: '',
-        amadeusApiSecret: '',
-        amadeusEnvironment: 'test',
+        kiwiApiKey: '',
       });
       setApiKey('');
-      setApiSecret('');
-      setEnvironment('test');
       setConfigured(false);
-      setSaveMsg({ ok: true, text: 'API keys cleared. Using mock data.' });
+      setSaveMsg({ ok: true, text: 'API key cleared.' });
     } catch (err) {
       setSaveMsg({ ok: false, text: err.message });
     } finally {
@@ -93,30 +82,31 @@ export default function SettingsModal({ onClose }) {
             {/* Current status banner */}
             <div className={`settings-status-banner ${configured ? 'configured' : 'not-configured'}`}>
               {configured
-                ? 'Amadeus API is configured — searches return real flight data'
-                : 'Amadeus API not configured — searches return simulated data'}
+                ? 'Kiwi API is configured — searches return real flight data from 800+ airlines'
+                : 'Kiwi API not configured — configure your API key to search flights'}
             </div>
 
-            {/* Amadeus API Section */}
+            {/* Kiwi API Section */}
             <div className="settings-section">
-              <h4>Amadeus Flight API</h4>
+              <h4>Kiwi Tequila Flight API</h4>
               <p className="settings-help">
-                Get real flight data from the Amadeus Self-Service API. Free tier includes
-                2,000 flight searches/month.
+                Get real flight data from the Kiwi Tequila API. Free to use with access to 800+ airlines
+                including low-cost carriers and virtual interlining.
               </p>
 
               <div className="settings-instructions">
                 <strong>How to get your API key (free, takes 2 minutes):</strong>
                 <ol>
-                  <li>Go to <a href="https://developers.amadeus.com/register" target="_blank" rel="noopener noreferrer">developers.amadeus.com/register</a></li>
+                  <li>Go to <a href="https://tequila.kiwi.com/portal/login/register" target="_blank" rel="noopener noreferrer">tequila.kiwi.com/portal/login/register</a></li>
                   <li>Create a free account and verify your email</li>
-                  <li>Log in, click your username (top-right), then "My Self-Service Workspace"</li>
-                  <li>Click "Create new app" — you'll receive an <strong>API Key</strong> and <strong>API Secret</strong></li>
-                  <li>Paste both values below and click Save</li>
+                  <li>Go to "My applications" and click "+ Add application"</li>
+                  <li>Choose your partnership type and create the app — you'll receive an <strong>API Key</strong></li>
+                  <li>Paste the API key below and click Save</li>
                 </ol>
                 <div className="settings-pricing-note">
-                  <strong>Pricing:</strong> The test environment is completely free (2,000 searches/month).
-                  Production has the same free quota but charges for overages.
+                  <strong>Pricing:</strong> Free to use. Covers 800+ airlines with real-time search,
+                  virtual interlining (combines airlines that don't have interline agreements),
+                  and booking capabilities.
                 </div>
               </div>
 
@@ -126,28 +116,9 @@ export default function SettingsModal({ onClose }) {
                   type="text"
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
-                  placeholder="Enter your Amadeus API Key"
+                  placeholder="Enter your Kiwi Tequila API Key"
                   spellCheck={false}
                 />
-              </div>
-
-              <div className="settings-field">
-                <label>API Secret</label>
-                <input
-                  type="password"
-                  value={apiSecret}
-                  onChange={e => setApiSecret(e.target.value)}
-                  placeholder="Enter your Amadeus API Secret"
-                  spellCheck={false}
-                />
-              </div>
-
-              <div className="settings-field">
-                <label>Environment</label>
-                <select value={environment} onChange={e => setEnvironment(e.target.value)}>
-                  <option value="test">Test (free, 2,000 searches/month)</option>
-                  <option value="production">Production (free quota + paid overages)</option>
-                </select>
               </div>
 
               <div className="settings-actions">
@@ -159,7 +130,7 @@ export default function SettingsModal({ onClose }) {
                 </button>
                 {configured && (
                   <button className="settings-clear-btn" onClick={handleClear} disabled={saving}>
-                    Clear Keys
+                    Clear Key
                   </button>
                 )}
               </div>
