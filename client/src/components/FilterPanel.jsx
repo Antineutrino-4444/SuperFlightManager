@@ -289,6 +289,37 @@ export default function FilterPanel({ filters, onChange }) {
         </div>
       </CollapsibleSection>
 
+      {/* Connection Time (for self-constructed itineraries) */}
+      <CollapsibleSection title="Connection Time">
+        <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+          Applies to self-constructed connections (separate tickets). Must allow time for immigration, baggage, and re-checkin.
+        </div>
+        <div className="overnight-config">
+          <div>
+            <label>Min layover (hours)</label>
+            <input
+              type="number"
+              min="1"
+              max="8"
+              step="0.5"
+              value={filters.minLayoverMinutes ? filters.minLayoverMinutes / 60 : 3}
+              onChange={e => updateFilter('minLayoverMinutes', Math.round(parseFloat(e.target.value) * 60))}
+            />
+          </div>
+          <div>
+            <label>Max layover (hours)</label>
+            <input
+              type="number"
+              min="2"
+              max="24"
+              step="0.5"
+              value={filters.maxLayoverMinutes ? filters.maxLayoverMinutes / 60 : 8}
+              onChange={e => updateFilter('maxLayoverMinutes', Math.round(parseFloat(e.target.value) * 60))}
+            />
+          </div>
+        </div>
+      </CollapsibleSection>
+
       {/* Price & Time */}
       <CollapsibleSection title="Price & Time">
         <div className="form-group">
