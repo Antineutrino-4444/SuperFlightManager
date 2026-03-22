@@ -9,6 +9,8 @@ export default function SettingsModal({ onClose }) {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [saveMsg, setSaveMsg] = useState(null);
+  // Track if user has typed a new key (vs displaying the masked saved key)
+  const [keyModified, setKeyModified] = useState(false);
 
   useEffect(() => {
     fetchSettings().then(data => {
@@ -18,7 +20,18 @@ export default function SettingsModal({ onClose }) {
     }).catch(() => setLoading(false));
   }, []);
 
+  function handleKeyChange(e) {
+    setApiKey(e.target.value);
+    setKeyModified(true);
+  }
+
   async function handleSave() {
+    // Don't save if the key wasn't modified (it would save the masked version)
+    if (!keyModified) {
+      setSaveMsg({ ok: true, text: 'No changes to save.' });
+      return;
+    }
+
     setSaving(true);
     setSaveMsg(null);
     setTestResult(null);
@@ -27,8 +40,10 @@ export default function SettingsModal({ onClose }) {
         serpApiKey: apiKey,
       });
       setConfigured(result.serpApiConfigured);
-      setApiKey(result.serpApiKey);
-      setSaveMsg({ ok: true, text: 'Settings saved.' });
+      // Don't replace the input with the masked key — keep what user typed
+      // Just show the masked version to confirm it saved
+      setSaveMsg({ ok: true, text: 'API key saved successfully.' });
+      setKeyModified(false);
     } catch (err) {
       setSaveMsg({ ok: false, text: err.message });
     } finally {
@@ -59,6 +74,7 @@ export default function SettingsModal({ onClose }) {
       });
       setApiKey('');
       setConfigured(false);
+      setKeyModified(false);
       setSaveMsg({ ok: true, text: 'API key cleared.' });
     } catch (err) {
       setSaveMsg({ ok: false, text: err.message });
@@ -83,7 +99,7 @@ export default function SettingsModal({ onClose }) {
             <div className={`settings-status-banner ${configured ? 'configured' : 'not-configured'}`}>
               {configured
                 ? 'SerpApi is configured — searches return real Google Flights data'
-                : 'SerpApi not configured — configure your API key to search flights'}
+                : 'No API key configured — add your SerpApi key below to search flights'}
             </div>
 
             {/* SerpApi Section */}
@@ -113,7 +129,7 @@ export default function SettingsModal({ onClose }) {
                 <input
                   type="text"
                   value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
+                  onChange={handleKeyChange}
                   placeholder="Enter your SerpApi key"
                   spellCheck={false}
                 />

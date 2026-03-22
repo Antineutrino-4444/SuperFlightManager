@@ -11,7 +11,11 @@ function loadSettings() {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const raw = fs.readFileSync(SETTINGS_FILE, 'utf-8');
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      // Only pick known keys — ignore any leftover old settings
+      return {
+        serpApiKey: parsed.serpApiKey || '',
+      };
     }
   } catch (err) {
     console.error('Failed to load settings:', err.message);
@@ -21,8 +25,11 @@ function loadSettings() {
 
 function saveSettings(updates) {
   const current = loadSettings();
-  const merged = { ...current, ...updates };
+  const merged = {
+    serpApiKey: updates.serpApiKey !== undefined ? updates.serpApiKey : current.serpApiKey,
+  };
   fs.writeFileSync(SETTINGS_FILE, JSON.stringify(merged, null, 2), 'utf-8');
+  console.log(`Settings saved to ${SETTINGS_FILE} (key ${merged.serpApiKey ? 'present' : 'empty'})`);
   return merged;
 }
 
