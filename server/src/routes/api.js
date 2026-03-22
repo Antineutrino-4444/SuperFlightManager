@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { filterItineraries } = require('../services/pathBuilder');
+const { filterItineraries, buildSelfConstructedItineraries } = require('../services/pathBuilder');
 const { convertCurrency, getExchangeRates } = require('../services/currency');
 const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
@@ -239,7 +239,16 @@ router.post('/search', async (req, res) => {
     let itineraries;
 
     try {
-      itineraries = await searchSerpApiFlights(origin, destination, date, expandedFilters);
+      // Search airline-offered and self-constructed itineraries in parallel
+      const [airlineOffered, selfConstructed] = await Promise.all([
+        searchSerpApiFlights(origin, destination, date, expandedFilters),
+        buildSelfConstructedItineraries(origin, destination, date).catch(err => {
+          console.warn('Self-constructed path builder error:', err.message);
+          return [];
+        }),
+      ]);
+
+      itineraries = [...airlineOffered, ...selfConstructed];
     } catch (err) {
       console.error('SerpApi error:', err.message);
       return res.status(502).json({

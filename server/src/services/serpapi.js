@@ -111,8 +111,7 @@ function mapSerpApiResponse(apiResponse, origin, destination, date) {
     const segments = offer.flights || [];
     if (segments.length === 0) continue;
 
-    // Skip offers with no price (Google Flights sometimes omits pricing)
-    if (!offer.price || offer.price <= 0) continue;
+    const priceAvailable = offer.price != null && offer.price > 0;
 
     const legs = [];
     let totalDistanceKm = 0;
@@ -162,8 +161,8 @@ function mapSerpApiResponse(apiResponse, origin, destination, date) {
       const fareClass = seg.travel_class || 'Economy';
 
       // Price per leg (divide total evenly)
-      const totalPrice = offer.price || 0;
-      const legPrice = Math.round((totalPrice / segments.length) * 100) / 100;
+      const totalPrice = priceAvailable ? offer.price : 0;
+      const legPrice = priceAvailable ? Math.round((totalPrice / segments.length) * 100) / 100 : 0;
 
       const estimatedMiles = airlineInfo
         ? Math.round(distanceMiles * (airlineInfo.milesPerMile || 1) / 5 + legPrice * (airlineInfo.milesPerDollar || 5) / 5)
@@ -205,7 +204,7 @@ function mapSerpApiResponse(apiResponse, origin, destination, date) {
     }
 
     const stops = segments.length - 1;
-    const totalPrice = offer.price || 0;
+    const totalPrice = priceAvailable ? offer.price : 0;
     const totalDurationMinutes = offer.total_duration || legs.reduce((sum, l) => sum + l.durationMinutes, 0);
 
     // Build layover info from the API's layovers array
@@ -237,6 +236,8 @@ function mapSerpApiResponse(apiResponse, origin, destination, date) {
     itineraries.push({
       id: `gf-${idx}-${date}`,
       type: stops === 0 ? 'direct' : 'connecting',
+      itineraryType: 'airline-offered',
+      priceUnavailable: !priceAvailable,
       legs,
       totalPriceUSD: totalPrice,
       priceBreakdown: legs.map(l => `$${l.priceUSD}`),
@@ -338,7 +339,49 @@ function matchAircraft(description) {
   return null;
 }
 
+// Search nonstop-only flights for a single leg (used by path builder)
+async function searchNonstopLegs(origin, destination, date) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error('SerpApi key not configured');
+  }
+
+  const params = new URLSearchParams({
+    engine: 'google_flights',
+    departure_id: origin,
+    arrival_id: destination,
+    outbound_date: date,
+    type: '2', // one-way
+    adults: '1',
+    currency: 'USD',
+    api_key: apiKey,
+    hl: 'en',
+    stops: '1', // nonstop only
+  });
+
+  try {
+    const response = await fetch(`${SERPAPI_BASE_URL}?${params}`);
+    const data = await response.json();
+
+    if (data.error) {
+      // Don't throw on leg searches — just return empty
+      console.warn(`Nonstop search ${origin}-${destination}: ${data.error}`);
+      return [];
+    }
+
+    const results = mapSerpApiResponse(data, origin, destination, date);
+    // Extract individual flight legs from nonstop results
+    return results
+      .filter(r => r.legs.length === 1)
+      .map(r => r.legs[0]);
+  } catch (err) {
+    console.warn(`Nonstop search ${origin}-${destination} failed: ${err.message}`);
+    return [];
+  }
+}
+
 module.exports = {
   searchSerpApiFlights,
+  searchNonstopLegs,
   testSerpApiConnection,
 };

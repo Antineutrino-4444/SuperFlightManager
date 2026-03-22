@@ -646,6 +646,17 @@ body {
   color: #3730a3;
 }
 
+.tag-self-constructed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.price-unavailable {
+  font-size: 0.9rem !important;
+  color: var(--text-secondary) !important;
+  font-style: italic;
+}
+
 /* Multi-select filter styling */
 .multi-select-filter {
   position: relative;
