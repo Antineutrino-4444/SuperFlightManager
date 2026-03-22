@@ -6,8 +6,8 @@ const { AIRPORTS, CONTINENTS, REGIONS } = require('../data/airports');
 const { AIRLINES, ALLIANCES } = require('../data/airlines');
 const { AIRCRAFT_TYPES, AIRCRAFT_FAMILIES } = require('../data/aircraft');
 const { CURRENCIES } = require('../data/currencies');
-const { getSettings, saveSettings, isKiwiConfigured } = require('../services/settings');
-const { searchKiwiFlights, testKiwiConnection } = require('../services/kiwi');
+const { getSettings, saveSettings, isSerpApiConfigured } = require('../services/settings');
+const { searchSerpApiFlights, testSerpApiConnection } = require('../services/serpapi');
 
 // GET /api/airports - search airports
 router.get('/airports', (req, res) => {
@@ -108,29 +108,29 @@ router.get('/status', async (req, res) => {
     status.endpoints.alliances = { ok: false, count: 0, message: e.message };
   }
 
-  // Check Kiwi API
-  if (isKiwiConfigured()) {
+  // Check SerpApi
+  if (isSerpApiConfigured()) {
     try {
-      const kiwiResult = await testKiwiConnection();
-      status.endpoints.kiwi = {
-        ok: kiwiResult.ok,
-        count: kiwiResult.ok ? 1 : 0,
-        message: kiwiResult.message,
+      const serpResult = await testSerpApiConnection();
+      status.endpoints.serpApi = {
+        ok: serpResult.ok,
+        count: serpResult.ok ? 1 : 0,
+        message: serpResult.message,
       };
     } catch (e) {
-      status.endpoints.kiwi = { ok: false, count: 0, message: e.message };
+      status.endpoints.serpApi = { ok: false, count: 0, message: e.message };
     }
   } else {
-    status.endpoints.kiwi = { ok: false, count: 0, message: 'Not configured — go to Settings to add your API key' };
+    status.endpoints.serpApi = { ok: false, count: 0, message: 'Not configured — go to Settings to add your API key' };
   }
 
   status.allOk = Object.values(status.endpoints).every(e => e.ok);
-  status.dataSource = isKiwiConfigured()
-    ? 'Kiwi Tequila API (real flight data, 800+ airlines)'
-    : 'Not configured — go to Settings to add your Kiwi API key';
-  status.note = isKiwiConfigured()
-    ? 'Flight data is sourced from the Kiwi Tequila API with real-time pricing and availability.'
-    : 'You must configure your Kiwi API key in Settings before searching for flights.';
+  status.dataSource = isSerpApiConfigured()
+    ? 'Google Flights via SerpApi (real flight data)'
+    : 'Not configured — go to Settings to add your SerpApi key';
+  status.note = isSerpApiConfigured()
+    ? 'Flight data is sourced from Google Flights via SerpApi with real-time pricing and availability.'
+    : 'You must configure your SerpApi key in Settings before searching for flights.';
 
   res.json(status);
 });
@@ -159,8 +159,8 @@ router.get('/regions', (req, res) => {
 router.get('/settings', (req, res) => {
   const settings = getSettings();
   res.json({
-    kiwiApiKey: settings.kiwiApiKey ? maskSecret(settings.kiwiApiKey) : '',
-    kiwiConfigured: isKiwiConfigured(),
+    serpApiKey: settings.serpApiKey ? maskSecret(settings.serpApiKey) : '',
+    serpApiConfigured: isSerpApiConfigured(),
   });
 });
 
@@ -172,23 +172,23 @@ function maskSecret(s) {
 // POST /api/settings - save settings
 router.post('/settings', (req, res) => {
   try {
-    const { kiwiApiKey } = req.body;
+    const { serpApiKey } = req.body;
     const updates = {};
-    if (kiwiApiKey !== undefined) updates.kiwiApiKey = kiwiApiKey;
+    if (serpApiKey !== undefined) updates.serpApiKey = serpApiKey;
     const saved = saveSettings(updates);
     res.json({
-      kiwiApiKey: saved.kiwiApiKey ? maskSecret(saved.kiwiApiKey) : '',
-      kiwiConfigured: isKiwiConfigured(),
+      serpApiKey: saved.serpApiKey ? maskSecret(saved.serpApiKey) : '',
+      serpApiConfigured: isSerpApiConfigured(),
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save settings', details: err.message });
   }
 });
 
-// POST /api/settings/test-kiwi - test Kiwi API connection
-router.post('/settings/test-kiwi', async (req, res) => {
+// POST /api/settings/test-connection - test SerpApi connection
+router.post('/settings/test-connection', async (req, res) => {
   try {
-    const result = await testKiwiConnection();
+    const result = await testSerpApiConnection();
     res.json(result);
   } catch (err) {
     res.json({ ok: false, message: err.message });
@@ -225,30 +225,29 @@ router.post('/search', async (req, res) => {
         const fam = AIRCRAFT_FAMILIES[familyName];
         if (fam) familyCodes.push(...fam.codes);
       }
-      // Merge with any individually selected aircraft types
       const existing = filters.aircraftTypes || [];
       expandedFilters.aircraftTypes = [...new Set([...existing, ...familyCodes])];
     }
 
-    // Require Kiwi API to be configured
-    if (!isKiwiConfigured()) {
+    // Require SerpApi to be configured
+    if (!isSerpApiConfigured()) {
       return res.status(400).json({
-        error: 'Kiwi API key is not configured. Go to Settings to add your API key.',
+        error: 'SerpApi key is not configured. Go to Settings to add your API key.',
       });
     }
 
     let itineraries;
 
     try {
-      itineraries = await searchKiwiFlights(origin, destination, date, expandedFilters);
+      itineraries = await searchSerpApiFlights(origin, destination, date, expandedFilters);
     } catch (err) {
-      console.error('Kiwi API error:', err.message);
+      console.error('SerpApi error:', err.message);
       return res.status(502).json({
-        error: `Kiwi API error: ${err.message}`,
+        error: `Google Flights API error: ${err.message}`,
       });
     }
 
-    // Apply filters (works the same for both data sources)
+    // Apply filters
     const filtered = filterItineraries(itineraries, expandedFilters);
 
     // Build diagnostics for when results are empty
@@ -260,11 +259,10 @@ router.post('/search', async (req, res) => {
       };
       if (itineraries.length === 0) {
         diagnostics.reason = 'NO_ITINERARIES_GENERATED';
-        diagnostics.explanation = `The Kiwi API returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`;
+        diagnostics.explanation = `Google Flights returned no flight offers between ${origin} and ${destination} on ${date}. This route may not have any flights on this date.`;
       } else {
         diagnostics.reason = 'ALL_FILTERED_OUT';
         diagnostics.explanation = `${itineraries.length} itinerary(ies) were generated but all were removed by your active filters. Try relaxing your filter criteria.`;
-        // Test each filter individually to show which ones are removing results
         const filterTests = [
           { key: 'aircraftTypes', label: 'Aircraft Type', test: (it) => expandedFilters.aircraftTypes?.length > 0 ? it.aircraftTypes.some(ac => expandedFilters.aircraftTypes.includes(ac)) : true },
           { key: 'airlines', label: 'Airlines', test: (it) => expandedFilters.airlines?.length > 0 ? it.legs.some(leg => expandedFilters.airlines.includes(leg.airline)) : true },

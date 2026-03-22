@@ -4,7 +4,7 @@ const path = require('path');
 const SETTINGS_FILE = path.join(__dirname, '../../.settings.json');
 
 const DEFAULT_SETTINGS = {
-  kiwiApiKey: '',
+  serpApiKey: '',
 };
 
 function loadSettings() {
@@ -30,9 +30,9 @@ function getSettings() {
   return loadSettings();
 }
 
-function isKiwiConfigured() {
+function isSerpApiConfigured() {
   const s = loadSettings();
-  return !!s.kiwiApiKey;
+  return !!s.serpApiKey;
 }
 
-module.exports = { getSettings, saveSettings, isKiwiConfigured };
+module.exports = { getSettings, saveSettings, isSerpApiConfigured };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSettings, saveSettings as apiSaveSettings, testKiwiConnection } from '../services/api';
+import { fetchSettings, saveSettings as apiSaveSettings, testConnection } from '../services/api';
 
 export default function SettingsModal({ onClose }) {
   const [apiKey, setApiKey] = useState('');
@@ -12,8 +12,8 @@ export default function SettingsModal({ onClose }) {
 
   useEffect(() => {
     fetchSettings().then(data => {
-      setApiKey(data.kiwiApiKey || '');
-      setConfigured(data.kiwiConfigured);
+      setApiKey(data.serpApiKey || '');
+      setConfigured(data.serpApiConfigured);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -24,10 +24,10 @@ export default function SettingsModal({ onClose }) {
     setTestResult(null);
     try {
       const result = await apiSaveSettings({
-        kiwiApiKey: apiKey,
+        serpApiKey: apiKey,
       });
-      setConfigured(result.kiwiConfigured);
-      setApiKey(result.kiwiApiKey);
+      setConfigured(result.serpApiConfigured);
+      setApiKey(result.serpApiKey);
       setSaveMsg({ ok: true, text: 'Settings saved.' });
     } catch (err) {
       setSaveMsg({ ok: false, text: err.message });
@@ -40,7 +40,7 @@ export default function SettingsModal({ onClose }) {
     setTesting(true);
     setTestResult(null);
     try {
-      const result = await testKiwiConnection();
+      const result = await testConnection();
       setTestResult(result);
     } catch (err) {
       setTestResult({ ok: false, message: err.message });
@@ -54,8 +54,8 @@ export default function SettingsModal({ onClose }) {
     setSaveMsg(null);
     setTestResult(null);
     try {
-      const result = await apiSaveSettings({
-        kiwiApiKey: '',
+      await apiSaveSettings({
+        serpApiKey: '',
       });
       setApiKey('');
       setConfigured(false);
@@ -82,31 +82,29 @@ export default function SettingsModal({ onClose }) {
             {/* Current status banner */}
             <div className={`settings-status-banner ${configured ? 'configured' : 'not-configured'}`}>
               {configured
-                ? 'Kiwi API is configured — searches return real flight data from 800+ airlines'
-                : 'Kiwi API not configured — configure your API key to search flights'}
+                ? 'SerpApi is configured — searches return real Google Flights data'
+                : 'SerpApi not configured — configure your API key to search flights'}
             </div>
 
-            {/* Kiwi API Section */}
+            {/* SerpApi Section */}
             <div className="settings-section">
-              <h4>Kiwi Tequila Flight API</h4>
+              <h4>Google Flights via SerpApi</h4>
               <p className="settings-help">
-                Get real flight data from the Kiwi Tequila API. Free to use with access to 800+ airlines
-                including low-cost carriers and virtual interlining.
+                Get real flight data from Google Flights via SerpApi. Free tier includes
+                250 searches/month with no credit card required.
               </p>
 
               <div className="settings-instructions">
-                <strong>How to get your API key (free, takes 2 minutes):</strong>
+                <strong>How to get your API key (free, takes 1 minute):</strong>
                 <ol>
-                  <li>Go to <a href="https://tequila.kiwi.com/portal/login/register" target="_blank" rel="noopener noreferrer">tequila.kiwi.com/portal/login/register</a></li>
-                  <li>Create a free account and verify your email</li>
-                  <li>Go to "My applications" and click "+ Add application"</li>
-                  <li>Choose your partnership type and create the app — you'll receive an <strong>API Key</strong></li>
+                  <li>Go to <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noopener noreferrer">serpapi.com/users/sign_up</a></li>
+                  <li>Create a free account (no credit card needed)</li>
+                  <li>Your API key is shown on the <a href="https://serpapi.com/dashboard" target="_blank" rel="noopener noreferrer">dashboard</a> after sign-in</li>
                   <li>Paste the API key below and click Save</li>
                 </ol>
                 <div className="settings-pricing-note">
-                  <strong>Pricing:</strong> Free to use. Covers 800+ airlines with real-time search,
-                  virtual interlining (combines airlines that don't have interline agreements),
-                  and booking capabilities.
+                  <strong>Pricing:</strong> Free plan includes 250 searches/month.
+                  Data comes directly from Google Flights — same prices, airlines, and routes you see on google.com/travel/flights.
                 </div>
               </div>
 
@@ -116,7 +114,7 @@ export default function SettingsModal({ onClose }) {
                   type="text"
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
-                  placeholder="Enter your Kiwi Tequila API Key"
+                  placeholder="Enter your SerpApi key"
                   spellCheck={false}
                 />
               </div>

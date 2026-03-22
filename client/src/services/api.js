@@ -71,8 +71,8 @@ export async function saveSettings(settings) {
   return res.json();
 }
 
-export async function testKiwiConnection() {
-  const res = await fetch(`${API_BASE}/settings/test-kiwi`, {
+export async function testConnection() {
+  const res = await fetch(`${API_BASE}/settings/test-connection`, {
     method: 'POST',
   });
   return res.json();

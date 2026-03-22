@@ -4,7 +4,7 @@ const { AIRCRAFT_TYPES } = require('../data/aircraft');
 
 // ============================================================
 // Mock flight data generator for demo mode (no API key needed)
-// When Kiwi API key is configured, this is bypassed
+// When SerpApi key is configured, this is bypassed
 // ============================================================
 
 // Haversine distance in km
