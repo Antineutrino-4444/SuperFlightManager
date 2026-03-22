@@ -97,6 +97,7 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
             {it.stops === 0 && <span className="tag tag-direct">Direct</span>}
+            <span className="tag tag-source">Airline Offered</span>
             {it.alliances.filter(a => a !== 'None').map(a => (
               <span key={a} className="tag tag-alliance">{a}</span>
             ))}
@@ -209,7 +210,10 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
           </div>
         </div>
         <div className="source-info">
-          Source: {[...new Set(it.legs.map(l => l.source))].join(', ')}
+          Airline-offered itinerary via {[...new Set(it.legs.map(l => l.source))].join(', ')}
+          {it.legs.some(l => l.operatedBy) && (
+            <span> | Operated by: {[...new Set(it.legs.filter(l => l.operatedBy).map(l => l.operatedBy))].join(', ')}</span>
+          )}
         </div>
       </div>
     </div>

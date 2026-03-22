@@ -111,6 +111,9 @@ function mapSerpApiResponse(apiResponse, origin, destination, date) {
     const segments = offer.flights || [];
     if (segments.length === 0) continue;
 
+    // Skip offers with no price (Google Flights sometimes omits pricing)
+    if (!offer.price || offer.price <= 0) continue;
+
     const legs = [];
     let totalDistanceKm = 0;
     let totalEstimatedMiles = 0;

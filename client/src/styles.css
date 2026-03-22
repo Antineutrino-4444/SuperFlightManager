@@ -641,6 +641,11 @@ body {
   color: #065f46;
 }
 
+.tag-source {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
 /* Multi-select filter styling */
 .multi-select-filter {
   position: relative;
