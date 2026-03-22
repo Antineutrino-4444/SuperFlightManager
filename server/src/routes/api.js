@@ -242,7 +242,10 @@ router.post('/search', async (req, res) => {
       // Search airline-offered and self-constructed itineraries in parallel
       const [airlineOffered, selfConstructed] = await Promise.all([
         searchSerpApiFlights(origin, destination, date, expandedFilters),
-        buildSelfConstructedItineraries(origin, destination, date).catch(err => {
+        buildSelfConstructedItineraries(origin, destination, date, {
+          minLayoverMinutes: expandedFilters.minLayoverMinutes,
+          maxLayoverMinutes: expandedFilters.maxLayoverMinutes,
+        }).catch(err => {
           console.warn('Self-constructed path builder error:', err.message);
           return [];
         }),

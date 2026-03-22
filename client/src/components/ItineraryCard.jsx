@@ -217,6 +217,11 @@ export default function ItineraryCard({ itinerary, currency, currencies }) {
             </span>
           </div>
         </div>
+        {it.itineraryType === 'self-constructed' && (
+          <div className="self-constructed-warning">
+            Separate tickets — no automatic baggage transfer, no rebooking protection if a flight is delayed. You must clear immigration and re-check in at the connection.
+          </div>
+        )}
         <div className="source-info">
           {it.itineraryType === 'self-constructed'
             ? 'Self-constructed itinerary — individual flights combined by SuperFlightManager'

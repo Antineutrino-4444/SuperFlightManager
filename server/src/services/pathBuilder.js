@@ -3,26 +3,31 @@ const { AIRLINES } = require('../data/airlines');
 const { haversineDistance } = require('./flightSearch');
 const { searchNonstopLegs } = require('./serpapi');
 
-// Major hub airports for self-constructed connecting itineraries
+// Hub airports for self-constructed connecting itineraries
+// Restricted to countries with visa-free entry for Chinese passport holders,
+// plus US, Canada, and Japan (user holds valid visas).
+// Policy basis: https://en.wikipedia.org/wiki/Visa_requirements_for_Chinese_citizens
 const HUB_AIRPORTS = [
-  // North America
-  'JFK', 'LAX', 'ORD', 'ATL', 'DFW', 'DEN', 'SFO', 'SEA', 'MIA', 'IAH', 'EWR', 'IAD', 'YYZ', 'YVR',
-  // Europe
-  'LHR', 'CDG', 'FRA', 'AMS', 'IST', 'MAD', 'FCO', 'MUC', 'ZRH', 'VIE', 'CPH', 'HEL',
-  // Middle East
-  'DXB', 'DOH', 'AUH',
-  // Asia
-  'SIN', 'HKG', 'NRT', 'HND', 'ICN', 'PEK', 'BKK', 'KUL', 'TPE', 'DEL', 'BOM',
-  // South America
-  'GRU', 'BOG', 'PTY', 'SCL', 'LIM',
-  // Africa
-  'JNB', 'ADD', 'CAI',
-  // Oceania
-  'SYD', 'AKL',
+  // US (user has visa)
+  'JFK', 'LAX', 'ORD', 'ATL', 'DFW', 'DEN', 'SFO', 'SEA', 'MIA', 'IAH', 'EWR', 'IAD',
+  // Canada (user has visa)
+  'YYZ', 'YVR',
+  // Japan (user has visa)
+  'NRT', 'HND',
+  // Singapore (visa-free 30 days)
+  'SIN',
+  // Thailand (visa-free 30 days)
+  'BKK',
+  // Malaysia (visa-free 30 days)
+  'KUL',
+  // UAE (visa-free 30 days)
+  'DXB', 'AUH',
+  // Qatar (visa-free 30 days)
+  'DOH',
 ];
 
 // Find geographically reasonable connection airports between origin and destination
-function findConnectionAirports(originCode, destinationCode, maxHubs = 5) {
+function findConnectionAirports(originCode, destinationCode, maxHubs = 3) {
   const orig = AIRPORTS[originCode];
   const dest = AIRPORTS[destinationCode];
   if (!orig || !dest) return [];
@@ -49,9 +54,13 @@ function findConnectionAirports(originCode, destinationCode, maxHubs = 5) {
 }
 
 // Build self-constructed connecting itineraries by searching nonstop legs via hubs
-async function buildSelfConstructedItineraries(origin, destination, date) {
+// minLayoverMinutes: minimum layover time in minutes (default 180 = 3 hours, for immigration + baggage + re-checkin)
+// maxLayoverMinutes: maximum layover time in minutes (default 480 = 8 hours)
+async function buildSelfConstructedItineraries(origin, destination, date, { minLayoverMinutes = 180, maxLayoverMinutes = 480 } = {}) {
   const hubs = findConnectionAirports(origin, destination);
   if (hubs.length === 0) return [];
+
+  console.log(`Self-constructed search: ${origin}->${destination}, checking ${hubs.length} hubs: ${hubs.join(', ')} (layover: ${minLayoverMinutes}-${maxLayoverMinutes} min)`);
 
   // Search all hub legs in parallel (2 API calls per hub: origin→hub, hub→destination)
   const hubSearches = hubs.map(async (hub) => {
@@ -71,12 +80,11 @@ async function buildSelfConstructedItineraries(origin, destination, date) {
     // Combine each leg1 with each compatible leg2
     for (const leg1 of toHub) {
       for (const leg2 of fromHub) {
-        // Validate layover time (1.5h to 8h)
         const leg1Arrival = new Date(leg1.arrivalTime);
         const leg2Departure = new Date(leg2.departureTime);
         const layoverMinutes = (leg2Departure - leg1Arrival) / (1000 * 60);
 
-        if (layoverMinutes < 90 || layoverMinutes > 480) continue;
+        if (layoverMinutes < minLayoverMinutes || layoverMinutes > maxLayoverMinutes) continue;
 
         const hubInfo = AIRPORTS[hub] || {};
         const overnightLayover = isOvernightLayover(leg1.arrivalTime, leg2.departureTime);
